@@ -10,8 +10,8 @@ import net.akat.util.FrameUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.MapMeta;
@@ -173,54 +173,61 @@ public class PaintManager {
         String processedKey = paint.getLocalPath() + "_" + strategyName + "_" + width + "x" + height;
         imageCache.put(processedKey, processedImage);
 
+        BlockFace expectedFace = FrameUtil.getFaceFromChar(paint.getFace());
+        boolean verticalWall = isVerticalWall(expectedFace);
+
+        Location areaPos1 = new Location(world, paint.getPos1Array()[0], paint.getPos1Array()[1], paint.getPos1Array()[2]);
+        Location areaPos2 = new Location(world, paint.getPos2Array()[0], paint.getPos2Array()[1], paint.getPos2Array()[2]);
+
+        List<ItemFrame> areaFrames = FrameUtil.getItemFramesInArea(areaPos1, areaPos2);
+        areaFrames.removeIf(frame -> frame.getAttachedFace() != expectedFace);
+
+        Map<String, ItemFrame> frameByRelativeCoords = new HashMap<>();
+        if (!areaFrames.isEmpty()) {
+            FrameUtil.FrameGrid grid = FrameUtil.calculateGrid(areaFrames);
+            for (ItemFrame frame : areaFrames) {
+                FrameUtil.RelativeCoords coords = FrameUtil.calculateRelativeCoords(frame, grid, verticalWall);
+                if (coords.relX < 0 || coords.relY < 0 || coords.relX >= width || coords.relY >= height) {
+                    continue;
+                }
+                frameByRelativeCoords.put(coords.relX + ":" + coords.relY, frame);
+            }
+        }
+
         int restored = 0;
 
         for (int[] frameData : paint.getFrames()) {
             int relX = frameData[0];
             int relY = frameData[1];
-            int index = frameData[2];
 
-            Location frameLoc = calculateFrameLocation(paint, relX, relY);
-            if (frameLoc == null) continue;
+            ItemFrame frame = frameByRelativeCoords.get(relX + ":" + relY);
+            if (frame != null) {
+                try {
+                    // ✅ БЕРЕМ СЕГМЕНТ ИЗ ОБРАБОТАННОГО СТРАТЕГИЕЙ ИЗОБРАЖЕНИЯ
+                    BufferedImage segment = processedImage.getSubimage(
+                            relX * mapSize, relY * mapSize, mapSize, mapSize
+                    );
 
-            boolean frameFound = false;
+                    MapView mapView = Bukkit.createMap(frame.getWorld());
+                    mapView.getRenderers().clear();
+                    mapView.addRenderer(new LazyMapRenderer(segment));
 
-            for (Entity entity : world.getNearbyEntities(frameLoc, 0.5, 0.5, 0.5)) {
-                if (entity instanceof ItemFrame) {
-                    ItemFrame frame = (ItemFrame) entity;
+                    ItemStack mapItem = new ItemStack(org.bukkit.Material.FILLED_MAP);
+                    MapMeta meta = (MapMeta) mapItem.getItemMeta();
+                    meta.setMapView(mapView);
+                    meta.setDisplayName(null);
+                    mapItem.setItemMeta(meta);
 
-                    if (frame.getLocation().getBlockX() == frameLoc.getBlockX() &&
-                            frame.getLocation().getBlockY() == frameLoc.getBlockY() &&
-                            frame.getLocation().getBlockZ() == frameLoc.getBlockZ()) {
-
-                        try {
-                            // ✅ БЕРЕМ СЕГМЕНТ ИЗ ОБРАБОТАННОГО СТРАТЕГИЕЙ ИЗОБРАЖЕНИЯ
-                            BufferedImage segment = processedImage.getSubimage(
-                                    relX * mapSize, relY * mapSize, mapSize, mapSize
-                            );
-
-                            MapView mapView = Bukkit.createMap(frame.getWorld());
-                            mapView.getRenderers().clear();
-                            mapView.addRenderer(new LazyMapRenderer(segment));
-
-                            ItemStack mapItem = new ItemStack(org.bukkit.Material.FILLED_MAP);
-                            MapMeta meta = (MapMeta) mapItem.getItemMeta();
-                            meta.setMapView(mapView);
-                            meta.setDisplayName(null);
-                            mapItem.setItemMeta(meta);
-
-                            frame.setItem(mapItem);
-                            restored++;
-                            frameFound = true;
-                        } catch (Exception e) {
-                            plugin.getLogger().warning("§eОшибка рамки: " + e.getMessage());
-                        }
-                        break;
-                    }
+                    frame.setItem(mapItem);
+                    restored++;
+                    continue;
+                } catch (Exception e) {
+                    plugin.getLogger().warning("§eОшибка рамки: " + e.getMessage());
                 }
             }
 
-            if (!frameFound) {
+            Location frameLoc = calculateFrameLocation(paint, relX, relY);
+            if (frameLoc != null) {
                 plugin.getLogger().warning("§eРамка не найдена: " + frameLoc.toString());
             }
         }
@@ -286,6 +293,11 @@ public class PaintManager {
                 relX,
                 relY
         );
+    }
+
+    private boolean isVerticalWall(BlockFace face) {
+        return face == BlockFace.NORTH || face == BlockFace.SOUTH
+                || face == BlockFace.EAST || face == BlockFace.WEST;
     }
 
     public void deletePaint(String id) {
