@@ -10,6 +10,9 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 
 public class LazyMapRenderer extends MapRenderer {
+    private static final int MAP_SIZE = 128;
+    private static final int MAP_PIXELS = MAP_SIZE * MAP_SIZE;
+
     private BufferedImage image;
     private boolean rendered;
     private BufferedImage scaledImageCache;
@@ -31,7 +34,7 @@ public class LazyMapRenderer extends MapRenderer {
     public void setImage(BufferedImage image) {
         this.image = image;
         this.rendered = false;
-        this.scaledImageCache = null; // Сбрасываем кэш при новом изображении
+        this.scaledImageCache = null;
         this.mapPixelsCache = null;
     }
 
@@ -40,10 +43,9 @@ public class LazyMapRenderer extends MapRenderer {
         if (rendered || image == null) return;
 
         byte[] mapPixels = getMapPixels();
-
-        for (int x = 0; x < 128; x++) {
-            for (int y = 0; y < 128; y++) {
-                mapCanvas.setPixel(x, y, mapPixels[y * 128 + x]);
+        for (int x = 0; x < MAP_SIZE; x++) {
+            for (int y = 0; y < MAP_SIZE; y++) {
+                mapCanvas.setPixel(x, y, mapPixels[y * MAP_SIZE + x]);
             }
         }
 
@@ -52,16 +54,11 @@ public class LazyMapRenderer extends MapRenderer {
 
     private BufferedImage getScaledImage() {
         if (scaledImageCache == null) {
-            scaledImageCache = new BufferedImage(128, 128, BufferedImage.TYPE_INT_RGB);
+            scaledImageCache = new BufferedImage(MAP_SIZE, MAP_SIZE, BufferedImage.TYPE_INT_RGB);
             Graphics2D g = scaledImageCache.createGraphics();
-
-            // Улучшенное масштабирование для лучшего качества
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g.setRenderingHint(RenderingHints.KEY_RENDERING,
-                    RenderingHints.VALUE_RENDER_QUALITY);
-
-            g.drawImage(image, 0, 0, 128, 128, null);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g.drawImage(image, 0, 0, MAP_SIZE, MAP_SIZE, null);
             g.dispose();
         }
         return scaledImageCache;
@@ -70,12 +67,11 @@ public class LazyMapRenderer extends MapRenderer {
     private byte[] getMapPixels() {
         if (mapPixelsCache == null) {
             BufferedImage scaledImage = getScaledImage();
-            mapPixelsCache = new byte[128 * 128];
+            int[] rgbPixels = scaledImage.getRGB(0, 0, MAP_SIZE, MAP_SIZE, null, 0, MAP_SIZE);
+            mapPixelsCache = new byte[MAP_PIXELS];
 
-            for (int x = 0; x < 128; x++) {
-                for (int y = 0; y < 128; y++) {
-                    mapPixelsCache[y * 128 + x] = MapColorUtil.getClosestColor(scaledImage.getRGB(x, y));
-                }
+            for (int i = 0; i < rgbPixels.length; i++) {
+                mapPixelsCache[i] = MapColorUtil.getClosestColor(rgbPixels[i]);
             }
         }
         return mapPixelsCache;
