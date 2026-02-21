@@ -13,6 +13,7 @@ public class LazyMapRenderer extends MapRenderer {
     private BufferedImage image;
     private boolean rendered;
     private BufferedImage scaledImageCache;
+    private byte[] mapPixelsCache;
 
     static {
         MapColorUtil.loadColors();
@@ -31,19 +32,18 @@ public class LazyMapRenderer extends MapRenderer {
         this.image = image;
         this.rendered = false;
         this.scaledImageCache = null; // Сбрасываем кэш при новом изображении
+        this.mapPixelsCache = null;
     }
 
     @Override
     public void render(MapView mapView, MapCanvas mapCanvas, Player player) {
         if (rendered || image == null) return;
 
-        BufferedImage scaledImage = getScaledImage();
+        byte[] mapPixels = getMapPixels();
 
         for (int x = 0; x < 128; x++) {
             for (int y = 0; y < 128; y++) {
-                // ИСПОЛЬЗУЕМ MapColorUtil ВМЕСТО MapPalette!
-                byte mapColor = MapColorUtil.getClosestColor(scaledImage.getRGB(x, y));
-                mapCanvas.setPixel(x, y, mapColor);
+                mapCanvas.setPixel(x, y, mapPixels[y * 128 + x]);
             }
         }
 
@@ -65,5 +65,19 @@ public class LazyMapRenderer extends MapRenderer {
             g.dispose();
         }
         return scaledImageCache;
+    }
+
+    private byte[] getMapPixels() {
+        if (mapPixelsCache == null) {
+            BufferedImage scaledImage = getScaledImage();
+            mapPixelsCache = new byte[128 * 128];
+
+            for (int x = 0; x < 128; x++) {
+                for (int y = 0; y < 128; y++) {
+                    mapPixelsCache[y * 128 + x] = MapColorUtil.getClosestColor(scaledImage.getRGB(x, y));
+                }
+            }
+        }
+        return mapPixelsCache;
     }
 }
