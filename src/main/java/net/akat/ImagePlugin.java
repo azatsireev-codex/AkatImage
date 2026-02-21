@@ -42,14 +42,14 @@ public class ImagePlugin extends JavaPlugin {
         ImageCommand command = new ImageCommand(serviceLocator);
         getCommand("image").setExecutor(command);
 
-        getLogger().info("§aЗагружено картин из paint.yml: " + paintManager.getAllPaints().size());
+        getLogger().info("§aЗагружено картин: " + paintManager.getAllPaints().size());
     }
 
     @Override
     public void onDisable() {
         if (paintManager != null) {
             paintManager.saveAllPaints();
-            getLogger().info("§aСохранено картин в paint.yml");
+            getLogger().info("§aСохранено картин");
         }
     }
 

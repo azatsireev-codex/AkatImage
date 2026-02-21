@@ -45,4 +45,10 @@ public class PluginConfigService implements ConfigService {
                 return new ScaleImageStrategy();
         }
     }
+
+    @Override
+    public void reload() {
+        plugin.reloadConfig();
+        this.config = plugin.getConfig();
+    }
 }

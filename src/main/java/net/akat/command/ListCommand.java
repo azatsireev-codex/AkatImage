@@ -1,11 +1,12 @@
 package net.akat.command;
 
 import net.akat.ServiceLocator;
-import net.akat.image.ImageRepository;
+import net.akat.painting.PaintData;
+import net.akat.painting.PaintManager;
 import org.bukkit.command.CommandSender;
 
+import java.util.Collection;
 import java.util.Optional;
-import java.util.Set;
 
 public class ListCommand implements Command {
     private final ServiceLocator services;
@@ -16,20 +17,23 @@ public class ListCommand implements Command {
 
     @Override
     public void execute(CommandSender sender, String[] args) {
-        ImageRepository repository = services.getService(ImageRepository.class);
-        Set<String> images = repository.getAllNames();
+        PaintManager paintManager = services.getService(PaintManager.class);
+        Collection<PaintData> paints = paintManager.getAllPaints();
 
-        sender.sendMessage("§6Доступные изображения (" + images.size() + "):");
-        if (images.isEmpty()) {
-            sender.sendMessage("§7Нет загруженных изображений");
-        } else {
-            sender.sendMessage("§7" + String.join(", ", images));
+        sender.sendMessage("§6Картины (" + paints.size() + "):");
+        if (paints.isEmpty()) {
+            sender.sendMessage("§7Нет сохранённых картин");
+            return;
+        }
+
+        for (PaintData paint : paints) {
+            sender.sendMessage("§7- §f" + paint.getId() + " §8(" + paint.getWidth() + "x" + paint.getHeight() + ", " + paint.getWorld() + ")");
         }
     }
 
     @Override
     public Optional<String> getPermission() {
-        return Optional.of("imageplugin.list");
+        return Optional.of("imageplugin.admin");
     }
 
     @Override

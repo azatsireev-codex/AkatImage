@@ -2,6 +2,7 @@ package net.akat.command;
 
 import net.akat.image.ImageRepository;
 import net.akat.ServiceLocator;
+import net.akat.painting.PaintManager;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
@@ -20,6 +21,8 @@ public class ImageCommand implements CommandExecutor, TabCompleter {
         registerCommand("url", new CreateFromUrlCommand(services));
         registerCommand("paint", new CreatePaintingCommand(services));
         registerCommand("reload", new ReloadCommand(services));
+        registerCommand("update", new UpdateCommand(services));
+        registerCommand("delete", new DeletePaintingCommand(services));
         registerCommand("list", new ListCommand(services));
     }
 
@@ -129,6 +132,24 @@ public class ImageCommand implements CommandExecutor, TabCompleter {
         if (args.length == 9 && args[0].equalsIgnoreCase("paint")) {
             return Arrays.asList("preserve", "scale", "crop").stream()
                     .filter(s -> s.startsWith(args[8].toLowerCase()))
+                    .collect(Collectors.toList());
+        }
+
+        if (args.length == 2 && args[0].equalsIgnoreCase("update")) {
+            PaintManager paintManager = services.getService(PaintManager.class);
+            List<String> options = new ArrayList<>();
+            options.add("all");
+            paintManager.getAllPaints().forEach(paint -> options.add(paint.getId()));
+            return options.stream()
+                    .filter(option -> option.startsWith(args[1].toLowerCase()))
+                    .collect(Collectors.toList());
+        }
+
+        if (args.length == 2 && args[0].equalsIgnoreCase("delete")) {
+            PaintManager paintManager = services.getService(PaintManager.class);
+            return paintManager.getAllPaints().stream()
+                    .map(paint -> paint.getId())
+                    .filter(id -> id.startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
         }
 

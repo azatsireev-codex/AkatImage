@@ -7,4 +7,5 @@ public interface ConfigService {
     int getMapSize();
     boolean isDebugMode();
     ImageProcessingStrategy getDefaultStrategy();
+    void reload();
 }

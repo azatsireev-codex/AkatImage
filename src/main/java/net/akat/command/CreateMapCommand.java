@@ -65,7 +65,7 @@ public class CreateMapCommand implements Command {
 
     @Override
     public Optional<String> getPermission() {
-        return Optional.of("imageplugin.create");
+        return Optional.of("imageplugin.admin");
     }
 
     @Override

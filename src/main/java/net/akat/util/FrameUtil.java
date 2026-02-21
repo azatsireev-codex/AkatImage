@@ -124,12 +124,12 @@ public class FrameUtil {
      * Вычисляет размеры сетки из списка рамок
      */
     public static FrameGrid calculateGrid(List<ItemFrame> frames) {
-        int minX = frames.stream().mapToInt(f -> f.getLocation().getBlockX()).min().orElse(0);
-        int maxX = frames.stream().mapToInt(f -> f.getLocation().getBlockX()).max().orElse(0);
-        int minY = frames.stream().mapToInt(f -> f.getLocation().getBlockY()).min().orElse(0);
-        int maxY = frames.stream().mapToInt(f -> f.getLocation().getBlockY()).max().orElse(0);
-        int minZ = frames.stream().mapToInt(f -> f.getLocation().getBlockZ()).min().orElse(0);
-        int maxZ = frames.stream().mapToInt(f -> f.getLocation().getBlockZ()).max().orElse(0);
+        int minX = frames.stream().mapToInt(frame -> getGridX(frame)).min().orElse(0);
+        int maxX = frames.stream().mapToInt(frame -> getGridX(frame)).max().orElse(0);
+        int minY = frames.stream().mapToInt(frame -> getGridY(frame)).min().orElse(0);
+        int maxY = frames.stream().mapToInt(frame -> getGridY(frame)).max().orElse(0);
+        int minZ = frames.stream().mapToInt(frame -> getGridZ(frame)).min().orElse(0);
+        int maxZ = frames.stream().mapToInt(frame -> getGridZ(frame)).max().orElse(0);
 
         return new FrameGrid(minX, maxX, minY, maxY, minZ, maxZ);
     }
@@ -219,9 +219,9 @@ public class FrameUtil {
      * Вычисляет относительные координаты для рамки
      */
     public static RelativeCoords calculateRelativeCoords(ItemFrame frame, FrameGrid grid, boolean isVerticalWall) {
-        int frameX = frame.getLocation().getBlockX();
-        int frameY = frame.getLocation().getBlockY();
-        int frameZ = frame.getLocation().getBlockZ();
+        int frameX = getGridX(frame);
+        int frameY = getGridY(frame);
+        int frameZ = getGridZ(frame);
 
         int relX, relY;
 
@@ -239,6 +239,27 @@ public class FrameUtil {
         }
 
         return new RelativeCoords(relX, relY);
+    }
+
+    private static int getGridX(ItemFrame frame) {
+        Block attachedBlock = getAttachedBlock(frame);
+        return attachedBlock != null ? attachedBlock.getX() : frame.getLocation().getBlockX();
+    }
+
+    private static int getGridY(ItemFrame frame) {
+        Block attachedBlock = getAttachedBlock(frame);
+        return attachedBlock != null ? attachedBlock.getY() : frame.getLocation().getBlockY();
+    }
+
+    private static int getGridZ(ItemFrame frame) {
+        Block attachedBlock = getAttachedBlock(frame);
+        return attachedBlock != null ? attachedBlock.getZ() : frame.getLocation().getBlockZ();
+    }
+
+    private static Block getAttachedBlock(ItemFrame frame) {
+        BlockFace attachedFace = frame.getAttachedFace();
+        if (attachedFace == null) return null;
+        return frame.getLocation().getBlock().getRelative(attachedFace);
     }
 
     /**

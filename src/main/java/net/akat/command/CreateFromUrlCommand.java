@@ -75,7 +75,7 @@ public class CreateFromUrlCommand implements Command {
 
     @Override
     public Optional<String> getPermission() {
-        return Optional.of("imageplugin.create.url");
+        return Optional.of("imageplugin.admin");
     }
 
     @Override

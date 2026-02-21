@@ -10,8 +10,8 @@ import net.akat.util.FrameUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.MapMeta;
@@ -25,14 +25,15 @@ import java.util.*;
 
 public class PaintManager {
     private final ImagePlugin plugin;
-    private final File paintFile;
-    private YamlConfiguration paintConfig;
+    private final File paintsDirectory;
+    private final File legacyPaintFile;
     private final Map<String, PaintData> paints = new HashMap<>();
     private final Map<String, BufferedImage> imageCache = new WeakHashMap<>();
 
     public PaintManager(ImagePlugin plugin) {
         this.plugin = plugin;
-        this.paintFile = new File(plugin.getDataFolder(), "paint.yml");
+        this.paintsDirectory = new File(plugin.getDataFolder(), "paints");
+        this.legacyPaintFile = new File(plugin.getDataFolder(), "paint.yml");
         loadPaints();
 
         plugin.getServer().getScheduler().runTaskLater(plugin, this::restoreAllPaints, 100L);
@@ -42,57 +43,112 @@ public class PaintManager {
         paints.clear();
         imageCache.clear();
 
-        if (!paintFile.exists()) {
-            return;
+        if (!paintsDirectory.exists()) {
+            paintsDirectory.mkdirs();
         }
+
+        int loaded = loadPaintsFromDirectory();
+
+        if (loaded == 0 && legacyPaintFile.exists()) {
+            loaded = loadLegacyPaints();
+            if (loaded > 0) {
+                saveAllPaints();
+                plugin.getLogger().info("§aМиграция картин из paint.yml завершена: " + loaded);
+            }
+        }
+
+        plugin.getLogger().info("§aЗагружено " + paints.size() + " картин");
+    }
+
+    private int loadPaintsFromDirectory() {
+        int loaded = 0;
+
+        File[] files = paintsDirectory.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files == null) {
+            return 0;
+        }
+
+        for (File file : files) {
+            try {
+                YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+                Map<String, Object> map = config.getConfigurationSection("paint") != null
+                        ? config.getConfigurationSection("paint").getValues(true)
+                        : config.getValues(true);
+
+                PaintData paint = PaintData.deserialize(map);
+                paints.put(paint.getId(), paint);
+                loaded++;
+            } catch (Exception e) {
+                plugin.getLogger().warning("§eОшибка чтения " + file.getName() + ": " + e.getMessage());
+            }
+        }
+
+        return loaded;
+    }
+
+    @SuppressWarnings("unchecked")
+    private int loadLegacyPaints() {
+        int loaded = 0;
 
         try {
-            paintConfig = YamlConfiguration.loadConfiguration(paintFile);
-
-            if (paintConfig.contains("paints")) {
-                List<Map<?, ?>> paintsList = paintConfig.getMapList("paints");
-
-                for (Map<?, ?> map : paintsList) {
-                    PaintData paint = PaintData.deserialize((Map<String, Object>) map);
-                    paints.put(paint.getId(), paint);
-                }
+            YamlConfiguration paintConfig = YamlConfiguration.loadConfiguration(legacyPaintFile);
+            if (!paintConfig.contains("paints")) {
+                return 0;
             }
 
-            plugin.getLogger().info("§aЗагружено " + paints.size() + " картин");
-
+            List<Map<?, ?>> paintsList = paintConfig.getMapList("paints");
+            for (Map<?, ?> map : paintsList) {
+                PaintData paint = PaintData.deserialize((Map<String, Object>) map);
+                paints.put(paint.getId(), paint);
+                loaded++;
+            }
         } catch (Exception e) {
-            plugin.getLogger().severe("§cОшибка загрузки paint.yml: " + e.getMessage());
+            plugin.getLogger().severe("§cОшибка загрузки legacy paint.yml: " + e.getMessage());
         }
+
+        return loaded;
     }
 
     public void savePaint(PaintData paint) {
         paints.put(paint.getId(), paint);
-        saveAllPaints();
+        savePaintToFile(paint);
     }
 
     public void saveAllPaints() {
-        if (paintConfig == null) {
-            paintConfig = new YamlConfiguration();
+        if (!paintsDirectory.exists()) {
+            paintsDirectory.mkdirs();
         }
 
-        paintConfig.options().copyDefaults(true);
-        paintConfig.options().width(120);
-        paintConfig.options().parseComments(false);
-        paintConfig.options().copyHeader(false);
-
-        List<Map<String, Object>> paintsList = new ArrayList<>();
         for (PaintData paint : paints.values()) {
-            paintsList.add(paint.serialize());
+            savePaintToFile(paint);
         }
 
-        paintConfig.set("paints", paintsList);
+        File[] existingFiles = paintsDirectory.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (existingFiles != null) {
+            for (File file : existingFiles) {
+                String id = file.getName().substring(0, file.getName().length() - 4);
+                if (!paints.containsKey(id)) {
+                    file.delete();
+                }
+            }
+        }
 
+        plugin.getLogger().info("§aСохранено " + paints.size() + " картин");
+    }
+
+    private void savePaintToFile(PaintData paint) {
         try {
-            paintConfig.save(paintFile);
-            plugin.getLogger().info("§aСохранено " + paints.size() + " картин");
+            YamlConfiguration config = new YamlConfiguration();
+            config.options().width(120);
+            config.set("paint", paint.serialize());
+            config.save(getPaintFile(paint.getId()));
         } catch (IOException e) {
-            plugin.getLogger().severe("§cОшибка сохранения paint.yml: " + e.getMessage());
+            plugin.getLogger().severe("§cОшибка сохранения картины " + paint.getId() + ": " + e.getMessage());
         }
+    }
+
+    private File getPaintFile(String id) {
+        return new File(paintsDirectory, id + ".yml");
     }
 
     public String generatePaintId() {
@@ -157,71 +213,73 @@ public class PaintManager {
             return false;
         }
 
-        // ✅ ПОЛУЧАЕМ И ПРИМЕНЯЕМ СТРАТЕГИЮ
         int mapSize = 128;
         int width = paint.getWidth();
         int height = paint.getHeight();
 
-        // Получаем стратегию по имени из PaintData
         String strategyName = paint.getStrategy();
         ImageProcessingStrategy strategy = getStrategyByName(strategyName);
 
-        // Применяем стратегию к оригинальному изображению
         BufferedImage processedImage = strategy.process(originalImage, width * mapSize, height * mapSize);
 
-        // Кэшируем обработанное изображение для следующих восстановлений
         String processedKey = paint.getLocalPath() + "_" + strategyName + "_" + width + "x" + height;
         imageCache.put(processedKey, processedImage);
+
+        BlockFace expectedFace = FrameUtil.getFaceFromChar(paint.getFace());
+        boolean verticalWall = isVerticalWall(expectedFace);
+
+        Location areaPos1 = new Location(world, paint.getPos1Array()[0], paint.getPos1Array()[1], paint.getPos1Array()[2]);
+        Location areaPos2 = new Location(world, paint.getPos2Array()[0], paint.getPos2Array()[1], paint.getPos2Array()[2]);
+
+        List<ItemFrame> areaFrames = FrameUtil.getItemFramesInArea(areaPos1, areaPos2);
+        areaFrames.removeIf(frame -> frame.getAttachedFace() != expectedFace);
+
+        Map<String, ItemFrame> frameByRelativeCoords = new HashMap<>();
+        if (!areaFrames.isEmpty()) {
+            FrameUtil.FrameGrid grid = FrameUtil.calculateGrid(areaFrames);
+            for (ItemFrame frame : areaFrames) {
+                FrameUtil.RelativeCoords coords = FrameUtil.calculateRelativeCoords(frame, grid, verticalWall);
+                if (coords.relX < 0 || coords.relY < 0 || coords.relX >= width || coords.relY >= height) {
+                    continue;
+                }
+                frameByRelativeCoords.put(coords.relX + ":" + coords.relY, frame);
+            }
+        }
 
         int restored = 0;
 
         for (int[] frameData : paint.getFrames()) {
             int relX = frameData[0];
             int relY = frameData[1];
-            int index = frameData[2];
 
-            Location frameLoc = calculateFrameLocation(paint, relX, relY);
-            if (frameLoc == null) continue;
+            ItemFrame frame = frameByRelativeCoords.get(relX + ":" + relY);
+            if (frame != null) {
+                try {
+                    BufferedImage segment = processedImage.getSubimage(
+                            relX * mapSize, relY * mapSize, mapSize, mapSize
+                    );
 
-            boolean frameFound = false;
+                    MapView mapView = Bukkit.createMap(frame.getWorld());
+                    mapView.getRenderers().clear();
+                    mapView.addRenderer(new LazyMapRenderer(segment));
 
-            for (Entity entity : world.getNearbyEntities(frameLoc, 0.5, 0.5, 0.5)) {
-                if (entity instanceof ItemFrame) {
-                    ItemFrame frame = (ItemFrame) entity;
+                    ItemStack mapItem = new ItemStack(org.bukkit.Material.FILLED_MAP);
+                    MapMeta meta = (MapMeta) mapItem.getItemMeta();
+                    meta.setMapView(mapView);
+                    meta.setDisplayName(null);
+                    mapItem.setItemMeta(meta);
 
-                    if (frame.getLocation().getBlockX() == frameLoc.getBlockX() &&
-                            frame.getLocation().getBlockY() == frameLoc.getBlockY() &&
-                            frame.getLocation().getBlockZ() == frameLoc.getBlockZ()) {
-
-                        try {
-                            // ✅ БЕРЕМ СЕГМЕНТ ИЗ ОБРАБОТАННОГО СТРАТЕГИЕЙ ИЗОБРАЖЕНИЯ
-                            BufferedImage segment = processedImage.getSubimage(
-                                    relX * mapSize, relY * mapSize, mapSize, mapSize
-                            );
-
-                            MapView mapView = Bukkit.createMap(frame.getWorld());
-                            mapView.getRenderers().clear();
-                            mapView.addRenderer(new LazyMapRenderer(segment));
-
-                            ItemStack mapItem = new ItemStack(org.bukkit.Material.FILLED_MAP);
-                            MapMeta meta = (MapMeta) mapItem.getItemMeta();
-                            meta.setMapView(mapView);
-                            meta.setDisplayName(null);
-                            mapItem.setItemMeta(meta);
-
-                            frame.setItem(mapItem);
-                            restored++;
-                            frameFound = true;
-                        } catch (Exception e) {
-                            plugin.getLogger().warning("§eОшибка рамки: " + e.getMessage());
-                        }
-                        break;
-                    }
+                    frame.setItem(mapItem);
+                    restored++;
+                    continue;
+                } catch (Exception e) {
+                    plugin.getLogger().warning("§eОшибка рамки: " + e.getMessage());
                 }
             }
 
-            if (!frameFound) {
-                plugin.getLogger().warning("§eРамка не найдена: " + frameLoc.toString());
+            Location frameLoc = calculateFrameLocation(paint, relX, relY);
+            if (frameLoc != null) {
+                plugin.getLogger().warning("§eРамка не найдена: " + frameLoc);
             }
         }
 
@@ -236,7 +294,6 @@ public class PaintManager {
         }
     }
 
-    // ✅ МЕТОД ДЛЯ ПОЛУЧЕНИЯ СТРАТЕГИИ ПО ИМЕНИ
     private ImageProcessingStrategy getStrategyByName(String name) {
         if (name == null) return new PreserveAspectRatioStrategy();
 
@@ -288,9 +345,65 @@ public class PaintManager {
         );
     }
 
+    private boolean isVerticalWall(BlockFace face) {
+        return face == BlockFace.NORTH || face == BlockFace.SOUTH
+                || face == BlockFace.EAST || face == BlockFace.WEST;
+    }
+
+    public Optional<PaintData> findOverlappingPaint(String worldName,
+                                                   int minX, int maxX,
+                                                   int minY, int maxY,
+                                                   int minZ, int maxZ,
+                                                   char face) {
+        for (PaintData paint : paints.values()) {
+            if (!paint.getWorld().equals(worldName) || paint.getFace() != face) {
+                continue;
+            }
+
+            int[] p1 = paint.getPos1Array();
+            int[] p2 = paint.getPos2Array();
+
+            int paintMinX = Math.min(p1[0], p2[0]);
+            int paintMaxX = Math.max(p1[0], p2[0]);
+            int paintMinY = Math.min(p1[1], p2[1]);
+            int paintMaxY = Math.max(p1[1], p2[1]);
+            int paintMinZ = Math.min(p1[2], p2[2]);
+            int paintMaxZ = Math.max(p1[2], p2[2]);
+
+            boolean intersects = rangesIntersect(minX, maxX, paintMinX, paintMaxX)
+                    && rangesIntersect(minY, maxY, paintMinY, paintMaxY)
+                    && rangesIntersect(minZ, maxZ, paintMinZ, paintMaxZ);
+
+            if (intersects) {
+                return Optional.of(paint);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private boolean rangesIntersect(int aMin, int aMax, int bMin, int bMax) {
+        return aMin <= bMax && bMin <= aMax;
+    }
+
     public void deletePaint(String id) {
         paints.remove(id);
-        saveAllPaints();
+        File file = getPaintFile(id);
+        if (file.exists()) {
+            file.delete();
+        }
+    }
+
+    public boolean deletePaintById(String id) {
+        if (!paints.containsKey(id)) {
+            return false;
+        }
+        deletePaint(id);
+        return true;
+    }
+
+    public Optional<PaintData> getPaintById(String id) {
+        return Optional.ofNullable(paints.get(id));
     }
 
     public Collection<PaintData> getAllPaints() {

@@ -165,12 +165,12 @@ public class CreatePaintingCommand implements Command {
             }
 
             // Вычисляем размеры сетки
-            int minX = frames.stream().mapToInt(f -> f.getLocation().getBlockX()).min().orElse(0);
-            int maxX = frames.stream().mapToInt(f -> f.getLocation().getBlockX()).max().orElse(0);
-            int minY = frames.stream().mapToInt(f -> f.getLocation().getBlockY()).min().orElse(0);
-            int maxY = frames.stream().mapToInt(f -> f.getLocation().getBlockY()).max().orElse(0);
-            int minZ = frames.stream().mapToInt(f -> f.getLocation().getBlockZ()).min().orElse(0);
-            int maxZ = frames.stream().mapToInt(f -> f.getLocation().getBlockZ()).max().orElse(0);
+            int minX = frames.stream().mapToInt(this::getFrameGridX).min().orElse(0);
+            int maxX = frames.stream().mapToInt(this::getFrameGridX).max().orElse(0);
+            int minY = frames.stream().mapToInt(this::getFrameGridY).min().orElse(0);
+            int maxY = frames.stream().mapToInt(this::getFrameGridY).max().orElse(0);
+            int minZ = frames.stream().mapToInt(this::getFrameGridZ).min().orElse(0);
+            int maxZ = frames.stream().mapToInt(this::getFrameGridZ).max().orElse(0);
 
             int width, height;
             char faceChar = 'N';
@@ -199,27 +199,46 @@ public class CreatePaintingCommand implements Command {
 
             player.sendMessage("§a✓ Размер картины: " + width + "x" + height + " рамок");
 
+            PaintManager paintManager = services.getService(PaintManager.class);
+            Optional<PaintData> overlapPaint = paintManager.findOverlappingPaint(
+                    player.getWorld().getName(),
+                    minX, maxX,
+                    minY, maxY,
+                    minZ, maxZ,
+                    faceChar
+            );
+
+            if (overlapPaint.isPresent()) {
+                player.sendMessage("§cВ этой области уже есть картина! ID: " + overlapPaint.get().getId());
+                return;
+            }
+
             // СОРТИРОВКА
             final boolean verticalWall = isVerticalWall;
 
             frames.sort((f1, f2) -> {
-                Location loc1 = f1.getLocation();
-                Location loc2 = f2.getLocation();
+                int x1 = getFrameGridX(f1);
+                int y1 = getFrameGridY(f1);
+                int z1 = getFrameGridZ(f1);
 
-                int yCompare = Integer.compare(loc2.getBlockY(), loc1.getBlockY());
+                int x2 = getFrameGridX(f2);
+                int y2 = getFrameGridY(f2);
+                int z2 = getFrameGridZ(f2);
+
+                int yCompare = Integer.compare(y2, y1);
                 if (yCompare != 0) return yCompare;
 
                 if (verticalWall) {
                     BlockFace face = f1.getAttachedFace();
                     if (face == BlockFace.NORTH || face == BlockFace.SOUTH) {
-                        return Integer.compare(loc1.getBlockX(), loc2.getBlockX());
+                        return Integer.compare(x1, x2);
                     } else {
-                        return Integer.compare(loc1.getBlockZ(), loc2.getBlockZ());
+                        return Integer.compare(z1, z2);
                     }
                 } else {
-                    int zCompare = Integer.compare(loc1.getBlockZ(), loc2.getBlockZ());
+                    int zCompare = Integer.compare(z1, z2);
                     if (zCompare != 0) return zCompare;
-                    return Integer.compare(loc1.getBlockX(), loc2.getBlockX());
+                    return Integer.compare(x1, x2);
                 }
             });
 
@@ -244,7 +263,6 @@ public class CreatePaintingCommand implements Command {
             g.dispose();
 
             // СОХРАНЯЕМ изображение локально
-            PaintManager paintManager = services.getService(PaintManager.class);
             String localPath;
 
             if (source.startsWith("http://") || source.startsWith("https://")) {
@@ -272,9 +290,9 @@ public class CreatePaintingCommand implements Command {
 
             for (ItemFrame frame : frames) {
                 try {
-                    int frameX = frame.getLocation().getBlockX();
-                    int frameY = frame.getLocation().getBlockY();
-                    int frameZ = frame.getLocation().getBlockZ();
+                    int frameX = getFrameGridX(frame);
+                    int frameY = getFrameGridY(frame);
+                    int frameZ = getFrameGridZ(frame);
 
                     int relX, relY;
 
@@ -320,17 +338,11 @@ public class CreatePaintingCommand implements Command {
             }
 
             // Создаем PaintData
-            int[] pos1Array = {
-                    pos1.getBlockX(),
-                    pos1.getBlockY(),
-                    pos1.getBlockZ()
-            };
-
-            int[] pos2Array = {
-                    pos2.getBlockX(),
-                    pos2.getBlockY(),
-                    pos2.getBlockZ()
-            };
+            // Важно: для восстановления сохраняем фактическую область РАМОК,
+            // а не пользовательские точки ввода. Это исключает смещение,
+            // если pos1/pos2 указывались по блоку стены/полу, а не по центрам рамок.
+            int[] pos1Array = {minX, minY, minZ};
+            int[] pos2Array = {maxX, maxY, maxZ};
 
             String paintId = paintManager.generatePaintId();
             PaintData paintData = new PaintData(
@@ -354,7 +366,7 @@ public class CreatePaintingCommand implements Command {
             player.sendMessage("§a✓ Обработано рамок: " + frameCount + "/" + frames.size());
             player.sendMessage("§a✓ Изображение сохранено: " + localPath);
             player.sendMessage("§a✓ Стратегия: " + strategyName);
-            player.sendMessage("§a✓ Данные сохранены в paint.yml");
+            player.sendMessage("§a✓ Данные сохранены в отдельный файл картины");
 
         } catch (Exception e) {
             player.sendMessage("§cОшибка создания картины: " + e.getMessage());
@@ -446,6 +458,21 @@ public class CreatePaintingCommand implements Command {
         return frame.getLocation().getBlock().getRelative(facing);
     }
 
+    private int getFrameGridX(ItemFrame frame) {
+        Block attached = getAttachedBlock(frame);
+        return attached != null ? attached.getX() : frame.getLocation().getBlockX();
+    }
+
+    private int getFrameGridY(ItemFrame frame) {
+        Block attached = getAttachedBlock(frame);
+        return attached != null ? attached.getY() : frame.getLocation().getBlockY();
+    }
+
+    private int getFrameGridZ(ItemFrame frame) {
+        Block attached = getAttachedBlock(frame);
+        return attached != null ? attached.getZ() : frame.getLocation().getBlockZ();
+    }
+
     private boolean isOnVerticalWall(ItemFrame frame) {
         BlockFace face = frame.getAttachedFace();
         return face == BlockFace.NORTH || face == BlockFace.SOUTH ||
@@ -463,7 +490,7 @@ public class CreatePaintingCommand implements Command {
 
     @Override
     public Optional<String> getPermission() {
-        return Optional.of("imageplugin.paint");
+        return Optional.of("imageplugin.admin");
     }
 
     @Override
