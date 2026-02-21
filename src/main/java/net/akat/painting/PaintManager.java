@@ -358,6 +358,18 @@ public class PaintManager {
         }
     }
 
+    public boolean deletePaintById(String id) {
+        if (!paints.containsKey(id)) {
+            return false;
+        }
+        deletePaint(id);
+        return true;
+    }
+
+    public Optional<PaintData> getPaintById(String id) {
+        return Optional.ofNullable(paints.get(id));
+    }
+
     public Collection<PaintData> getAllPaints() {
         return paints.values();
     }

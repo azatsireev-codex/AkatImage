@@ -8,7 +8,7 @@ description: Плагин для создания картинок
 commands:
   image:
     description: Управление изображениями и создание карт
-    usage: /image <create|url|paint|list|reload|update>
+    usage: /image <create|url|paint|list|reload|update|delete>
     aliases: [img]
 
 permissions:
@@ -20,6 +20,7 @@ permissions:
       imageplugin.create.url: true
       imageplugin.reload: true
       imageplugin.update: true
+      imageplugin.delete: true
       imageplugin.list: true
       imageplugin.admin: true
 
@@ -41,6 +42,10 @@ permissions:
 
   imageplugin.update:
     description: Повторная отрисовка всех картин
+    default: op
+
+  imageplugin.delete:
+    description: Удаление сохраненной картины
     default: op
 
   imageplugin.admin:
