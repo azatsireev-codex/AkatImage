@@ -17,11 +17,6 @@ public class ReloadCommand implements Command {
 
     @Override
     public void execute(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("imageplugin.reload")) {
-            sender.sendMessage("§cУ вас нет прав!");
-            return;
-        }
-
         ConfigService configService = services.getService(ConfigService.class);
         ImageRepository repository = services.getService(ImageRepository.class);
         PaintManager paintManager = services.getService(PaintManager.class);
@@ -35,7 +30,7 @@ public class ReloadCommand implements Command {
 
     @Override
     public Optional<String> getPermission() {
-        return Optional.of("imageplugin.reload");
+        return Optional.of("imageplugin.admin");
     }
 
     @Override

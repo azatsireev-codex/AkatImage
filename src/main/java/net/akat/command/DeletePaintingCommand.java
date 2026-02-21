@@ -33,7 +33,7 @@ public class DeletePaintingCommand implements Command {
 
     @Override
     public Optional<String> getPermission() {
-        return Optional.of("imageplugin.delete");
+        return Optional.of("imageplugin.admin");
     }
 
     @Override

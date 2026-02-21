@@ -199,6 +199,20 @@ public class CreatePaintingCommand implements Command {
 
             player.sendMessage("§a✓ Размер картины: " + width + "x" + height + " рамок");
 
+            PaintManager paintManager = services.getService(PaintManager.class);
+            Optional<PaintData> overlapPaint = paintManager.findOverlappingPaint(
+                    player.getWorld().getName(),
+                    minX, maxX,
+                    minY, maxY,
+                    minZ, maxZ,
+                    faceChar
+            );
+
+            if (overlapPaint.isPresent()) {
+                player.sendMessage("§cВ этой области уже есть картина! ID: " + overlapPaint.get().getId());
+                return;
+            }
+
             // СОРТИРОВКА
             final boolean verticalWall = isVerticalWall;
 
@@ -249,7 +263,6 @@ public class CreatePaintingCommand implements Command {
             g.dispose();
 
             // СОХРАНЯЕМ изображение локально
-            PaintManager paintManager = services.getService(PaintManager.class);
             String localPath;
 
             if (source.startsWith("http://") || source.startsWith("https://")) {
@@ -477,7 +490,7 @@ public class CreatePaintingCommand implements Command {
 
     @Override
     public Optional<String> getPermission() {
-        return Optional.of("imageplugin.paint");
+        return Optional.of("imageplugin.admin");
     }
 
     @Override

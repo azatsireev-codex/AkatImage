@@ -33,7 +33,7 @@ public class ListCommand implements Command {
 
     @Override
     public Optional<String> getPermission() {
-        return Optional.of("imageplugin.list");
+        return Optional.of("imageplugin.admin");
     }
 
     @Override

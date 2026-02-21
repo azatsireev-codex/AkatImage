@@ -41,7 +41,7 @@ public class UpdateCommand implements Command {
 
     @Override
     public Optional<String> getPermission() {
-        return Optional.of("imageplugin.update");
+        return Optional.of("imageplugin.admin");
     }
 
     @Override

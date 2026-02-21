@@ -16,25 +16,34 @@ permissions:
     description: Все права AkatImage
     default: op
     children:
+      imageplugin.admin: true
       imageplugin.create: true
       imageplugin.create.url: true
+      imageplugin.paint: true
       imageplugin.reload: true
       imageplugin.update: true
       imageplugin.delete: true
       imageplugin.list: true
-      imageplugin.admin: true
+
+  imageplugin.admin:
+    description: Доступ ко всем командам ImagePlugin
+    default: op
 
   imageplugin.create:
     description: Создание картинки из карт
-    default: true
+    default: op
 
   imageplugin.create.url:
     description: Создание мозаики из URL
     default: op
 
+  imageplugin.paint:
+    description: Создание и сохранение картины в рамках
+    default: op
+
   imageplugin.list:
-    description: Просмотр списка изображений
-    default: true
+    description: Просмотр списка картин
+    default: op
 
   imageplugin.reload:
     description: Перезагрузка изображений
@@ -46,8 +55,4 @@ permissions:
 
   imageplugin.delete:
     description: Удаление сохраненной картины
-    default: op
-
-  imageplugin.admin:
-    description: Административные команды
     default: op

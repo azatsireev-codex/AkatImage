@@ -350,6 +350,42 @@ public class PaintManager {
                 || face == BlockFace.EAST || face == BlockFace.WEST;
     }
 
+    public Optional<PaintData> findOverlappingPaint(String worldName,
+                                                   int minX, int maxX,
+                                                   int minY, int maxY,
+                                                   int minZ, int maxZ,
+                                                   char face) {
+        for (PaintData paint : paints.values()) {
+            if (!paint.getWorld().equals(worldName) || paint.getFace() != face) {
+                continue;
+            }
+
+            int[] p1 = paint.getPos1Array();
+            int[] p2 = paint.getPos2Array();
+
+            int paintMinX = Math.min(p1[0], p2[0]);
+            int paintMaxX = Math.max(p1[0], p2[0]);
+            int paintMinY = Math.min(p1[1], p2[1]);
+            int paintMaxY = Math.max(p1[1], p2[1]);
+            int paintMinZ = Math.min(p1[2], p2[2]);
+            int paintMaxZ = Math.max(p1[2], p2[2]);
+
+            boolean intersects = rangesIntersect(minX, maxX, paintMinX, paintMaxX)
+                    && rangesIntersect(minY, maxY, paintMinY, paintMaxY)
+                    && rangesIntersect(minZ, maxZ, paintMinZ, paintMaxZ);
+
+            if (intersects) {
+                return Optional.of(paint);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private boolean rangesIntersect(int aMin, int aMax, int bMin, int bMax) {
+        return aMin <= bMax && bMin <= aMax;
+    }
+
     public void deletePaint(String id) {
         paints.remove(id);
         File file = getPaintFile(id);
