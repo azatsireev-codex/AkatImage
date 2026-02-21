@@ -320,17 +320,11 @@ public class CreatePaintingCommand implements Command {
             }
 
             // Создаем PaintData
-            int[] pos1Array = {
-                    pos1.getBlockX(),
-                    pos1.getBlockY(),
-                    pos1.getBlockZ()
-            };
-
-            int[] pos2Array = {
-                    pos2.getBlockX(),
-                    pos2.getBlockY(),
-                    pos2.getBlockZ()
-            };
+            // Важно: для восстановления сохраняем фактическую область РАМОК,
+            // а не пользовательские точки ввода. Это исключает смещение,
+            // если pos1/pos2 указывались по блоку стены/полу, а не по центрам рамок.
+            int[] pos1Array = {minX, minY, minZ};
+            int[] pos2Array = {maxX, maxY, maxZ};
 
             String paintId = paintManager.generatePaintId();
             PaintData paintData = new PaintData(
