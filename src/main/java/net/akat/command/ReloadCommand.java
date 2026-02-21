@@ -1,7 +1,9 @@
 package net.akat.command;
 
 import net.akat.ServiceLocator;
+import net.akat.config.ConfigService;
 import net.akat.image.ImageRepository;
+import net.akat.painting.PaintManager;
 import org.bukkit.command.CommandSender;
 
 import java.util.Optional;
@@ -20,9 +22,15 @@ public class ReloadCommand implements Command {
             return;
         }
 
+        ConfigService configService = services.getService(ConfigService.class);
         ImageRepository repository = services.getService(ImageRepository.class);
+        PaintManager paintManager = services.getService(PaintManager.class);
+
+        configService.reload();
         repository.loadAll();
-        sender.sendMessage("§aИзображения перезагружены!");
+        paintManager.loadPaints();
+
+        sender.sendMessage("§aКонфигурации плагина перезагружены!");
     }
 
     @Override

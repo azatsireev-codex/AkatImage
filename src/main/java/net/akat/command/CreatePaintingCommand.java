@@ -353,7 +353,7 @@ public class CreatePaintingCommand implements Command {
             player.sendMessage("§a✓ Обработано рамок: " + frameCount + "/" + frames.size());
             player.sendMessage("§a✓ Изображение сохранено: " + localPath);
             player.sendMessage("§a✓ Стратегия: " + strategyName);
-            player.sendMessage("§a✓ Данные сохранены в paint.yml");
+            player.sendMessage("§a✓ Данные сохранены в отдельный файл картины");
 
         } catch (Exception e) {
             player.sendMessage("§cОшибка создания картины: " + e.getMessage());

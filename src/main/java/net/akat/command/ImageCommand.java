@@ -20,6 +20,7 @@ public class ImageCommand implements CommandExecutor, TabCompleter {
         registerCommand("url", new CreateFromUrlCommand(services));
         registerCommand("paint", new CreatePaintingCommand(services));
         registerCommand("reload", new ReloadCommand(services));
+        registerCommand("update", new UpdateCommand(services));
         registerCommand("list", new ListCommand(services));
     }
 
