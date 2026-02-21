@@ -1,0 +1,10 @@
+max-mosaic-size: 10
+map-size: 128
+debug: false
+default-strategy: "aspect"  # scale, crop, aspect
+
+messages:
+  no-permission: "&cУ вас нет прав!"
+  image-not-found: "&cИзображение не найдено!"
+  mosaic-created: "&aСоздана мозаика {width}x{height} из '{image}'!"
+  help-header: "&6=== AkatImage Команды ==="

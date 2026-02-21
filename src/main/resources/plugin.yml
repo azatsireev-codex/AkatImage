@@ -1,0 +1,43 @@
+name: ImagePlugin
+version: 1.0.0
+main: net.akat.ImagePlugin
+api-version: 1.21
+author: 2FORWORD2
+description: Плагин для создания картинок
+
+commands:
+  image:
+    description: Управление изображениями и создание карт
+    usage: /image <create|list|reload>
+    aliases: [img]
+
+permissions:
+  imageplugin.*:
+    description: Все права AkatImage
+    default: op
+    children:
+      imageplugin.create: true
+      imageplugin.create.url: true
+      imageplugin.reload: true
+      imageplugin.list: true
+      imageplugin.admin: true
+
+  imageplugin.create:
+    description: Создание картинки из карт
+    default: true
+
+  imageplugin.create.url:
+    description: Создание мозаики из URL
+    default: op
+
+  imageplugin.list:
+    description: Просмотр списка изображений
+    default: true
+
+  imageplugin.reload:
+    description: Перезагрузка изображений
+    default: op
+
+  imageplugin.admin:
+    description: Административные команды
+    default: op
