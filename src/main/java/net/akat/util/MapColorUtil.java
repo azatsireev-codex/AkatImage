@@ -3,24 +3,30 @@ package net.akat.util;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class MapColorUtil {
     private static final Map<Integer, Integer> PROTOCOL_COLORS = new HashMap<>();
-    private static final int RGB_CACHE_LIMIT = 65_536;
-    private static final Map<Integer, Byte> RGB_TO_MAP_COLOR = new LinkedHashMap<>(RGB_CACHE_LIMIT, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<Integer, Byte> eldest) {
-            return size() > RGB_CACHE_LIMIT;
-        }
-    };
+    private static final String MC_VERSION = "1.21.8";
+
+    // Небоксированный direct-mapped cache (rgb -> map color)
+    private static final int RGB_CACHE_SIZE = 1 << 16;
+    private static final int RGB_CACHE_MASK = RGB_CACHE_SIZE - 1;
+    private static final int[] RGB_CACHE_KEYS = new int[RGB_CACHE_SIZE];
+    private static final byte[] RGB_CACHE_VALUES = new byte[RGB_CACHE_SIZE];
+
+    // Предрасчёт весов для dr/dg/db в диапазоне [-255..255]
+    private static final int DIFF_OFFSET = 255;
+    private static final int[] RED_WEIGHTED_SQUARE = new int[511];
+    private static final int[] GREEN_WEIGHTED_SQUARE = new int[511];
+    private static final int[] BLUE_WEIGHTED_SQUARE = new int[511];
 
     private static int[] paletteIds = new int[0];
     private static int[] paletteReds = new int[0];
@@ -28,7 +34,19 @@ public class MapColorUtil {
     private static int[] paletteBlues = new int[0];
 
     private static boolean loaded = false;
-    private static final String MC_VERSION = "1.21.8";
+
+    static {
+        // -1 невалиден как ключ RGB (так как rgb маскируется до 0xFFFFFF)
+        java.util.Arrays.fill(RGB_CACHE_KEYS, -1);
+
+        for (int d = -255; d <= 255; d++) {
+            int idx = d + DIFF_OFFSET;
+            int sq = d * d;
+            RED_WEIGHTED_SQUARE[idx] = sq * 299;
+            GREEN_WEIGHTED_SQUARE[idx] = sq * 587;
+            BLUE_WEIGHTED_SQUARE[idx] = sq * 114;
+        }
+    }
 
     public static void loadColors() {
         if (loaded) return;
@@ -91,9 +109,9 @@ public class MapColorUtil {
 
         rgb = rgb & 0xFFFFFF;
 
-        Byte cached = RGB_TO_MAP_COLOR.get(rgb);
-        if (cached != null) {
-            return cached;
+        int cacheIndex = rgb & RGB_CACHE_MASK;
+        if (RGB_CACHE_KEYS[cacheIndex] == rgb) {
+            return RGB_CACHE_VALUES[cacheIndex];
         }
 
         int targetRed = (rgb >> 16) & 0xFF;
@@ -101,25 +119,30 @@ public class MapColorUtil {
         int targetBlue = rgb & 0xFF;
 
         int bestId = 4;
-        long bestDistance = Long.MAX_VALUE;
+        int bestDistance = Integer.MAX_VALUE;
 
         for (int i = 0; i < paletteIds.length; i++) {
-            int dr = targetRed - paletteReds[i];
-            int dg = targetGreen - paletteGreens[i];
-            int db = targetBlue - paletteBlues[i];
+            int drIdx = targetRed - paletteReds[i] + DIFF_OFFSET;
+            int dgIdx = targetGreen - paletteGreens[i] + DIFF_OFFSET;
+            int dbIdx = targetBlue - paletteBlues[i] + DIFF_OFFSET;
 
-            long distance = (long) dr * dr * 299L
-                    + (long) dg * dg * 587L
-                    + (long) db * db * 114L;
+            int distance = RED_WEIGHTED_SQUARE[drIdx]
+                    + GREEN_WEIGHTED_SQUARE[dgIdx]
+                    + BLUE_WEIGHTED_SQUARE[dbIdx];
 
             if (distance < bestDistance) {
                 bestDistance = distance;
                 bestId = paletteIds[i];
+
+                if (distance == 0) {
+                    break;
+                }
             }
         }
 
         byte bestColor = (byte) bestId;
-        RGB_TO_MAP_COLOR.put(rgb, bestColor);
+        RGB_CACHE_KEYS[cacheIndex] = rgb;
+        RGB_CACHE_VALUES[cacheIndex] = bestColor;
         return bestColor;
     }
 }
