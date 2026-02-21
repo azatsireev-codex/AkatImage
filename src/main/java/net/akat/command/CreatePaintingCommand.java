@@ -165,12 +165,12 @@ public class CreatePaintingCommand implements Command {
             }
 
             // Вычисляем размеры сетки
-            int minX = frames.stream().mapToInt(f -> f.getLocation().getBlockX()).min().orElse(0);
-            int maxX = frames.stream().mapToInt(f -> f.getLocation().getBlockX()).max().orElse(0);
-            int minY = frames.stream().mapToInt(f -> f.getLocation().getBlockY()).min().orElse(0);
-            int maxY = frames.stream().mapToInt(f -> f.getLocation().getBlockY()).max().orElse(0);
-            int minZ = frames.stream().mapToInt(f -> f.getLocation().getBlockZ()).min().orElse(0);
-            int maxZ = frames.stream().mapToInt(f -> f.getLocation().getBlockZ()).max().orElse(0);
+            int minX = frames.stream().mapToInt(this::getFrameGridX).min().orElse(0);
+            int maxX = frames.stream().mapToInt(this::getFrameGridX).max().orElse(0);
+            int minY = frames.stream().mapToInt(this::getFrameGridY).min().orElse(0);
+            int maxY = frames.stream().mapToInt(this::getFrameGridY).max().orElse(0);
+            int minZ = frames.stream().mapToInt(this::getFrameGridZ).min().orElse(0);
+            int maxZ = frames.stream().mapToInt(this::getFrameGridZ).max().orElse(0);
 
             int width, height;
             char faceChar = 'N';
@@ -203,23 +203,28 @@ public class CreatePaintingCommand implements Command {
             final boolean verticalWall = isVerticalWall;
 
             frames.sort((f1, f2) -> {
-                Location loc1 = f1.getLocation();
-                Location loc2 = f2.getLocation();
+                int x1 = getFrameGridX(f1);
+                int y1 = getFrameGridY(f1);
+                int z1 = getFrameGridZ(f1);
 
-                int yCompare = Integer.compare(loc2.getBlockY(), loc1.getBlockY());
+                int x2 = getFrameGridX(f2);
+                int y2 = getFrameGridY(f2);
+                int z2 = getFrameGridZ(f2);
+
+                int yCompare = Integer.compare(y2, y1);
                 if (yCompare != 0) return yCompare;
 
                 if (verticalWall) {
                     BlockFace face = f1.getAttachedFace();
                     if (face == BlockFace.NORTH || face == BlockFace.SOUTH) {
-                        return Integer.compare(loc1.getBlockX(), loc2.getBlockX());
+                        return Integer.compare(x1, x2);
                     } else {
-                        return Integer.compare(loc1.getBlockZ(), loc2.getBlockZ());
+                        return Integer.compare(z1, z2);
                     }
                 } else {
-                    int zCompare = Integer.compare(loc1.getBlockZ(), loc2.getBlockZ());
+                    int zCompare = Integer.compare(z1, z2);
                     if (zCompare != 0) return zCompare;
-                    return Integer.compare(loc1.getBlockX(), loc2.getBlockX());
+                    return Integer.compare(x1, x2);
                 }
             });
 
@@ -272,9 +277,9 @@ public class CreatePaintingCommand implements Command {
 
             for (ItemFrame frame : frames) {
                 try {
-                    int frameX = frame.getLocation().getBlockX();
-                    int frameY = frame.getLocation().getBlockY();
-                    int frameZ = frame.getLocation().getBlockZ();
+                    int frameX = getFrameGridX(frame);
+                    int frameY = getFrameGridY(frame);
+                    int frameZ = getFrameGridZ(frame);
 
                     int relX, relY;
 
@@ -438,6 +443,21 @@ public class CreatePaintingCommand implements Command {
         BlockFace facing = frame.getAttachedFace();
         if (facing == null) return null;
         return frame.getLocation().getBlock().getRelative(facing);
+    }
+
+    private int getFrameGridX(ItemFrame frame) {
+        Block attached = getAttachedBlock(frame);
+        return attached != null ? attached.getX() : frame.getLocation().getBlockX();
+    }
+
+    private int getFrameGridY(ItemFrame frame) {
+        Block attached = getAttachedBlock(frame);
+        return attached != null ? attached.getY() : frame.getLocation().getBlockY();
+    }
+
+    private int getFrameGridZ(ItemFrame frame) {
+        Block attached = getAttachedBlock(frame);
+        return attached != null ? attached.getZ() : frame.getLocation().getBlockZ();
     }
 
     private boolean isOnVerticalWall(ItemFrame frame) {
